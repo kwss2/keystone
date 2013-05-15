@@ -303,6 +303,7 @@ def configure():
     register_str('user_mail_attribute', group='ldap', default='email')
     register_str('user_pass_attribute', group='ldap', default='userPassword')
     register_str('user_enabled_attribute', group='ldap', default='enabled')
+    register_str('user_expires_attribute', group='ldap', default='accountExpires')
     register_str(
         'user_domain_id_attribute', group='ldap', default='businessCategory')
     register_int('user_enabled_mask', group='ldap', default=0)

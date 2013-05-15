@@ -14,23 +14,27 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
+import datetime
+
 from keystone import clean
 from keystone.common import sql
 from keystone.common.sql import migration
 from keystone.common import utils
 from keystone import exception
 from keystone import identity
+from keystone.openstack.common import timeutils
 
 
 class User(sql.ModelBase, sql.DictBase):
     __tablename__ = 'user'
-    attributes = ['id', 'name', 'domain_id', 'password', 'enabled']
+    attributes = ['id', 'name','domain_id', 'password', 'enabled', 'expires']
     id = sql.Column(sql.String(64), primary_key=True)
     name = sql.Column(sql.String(64), nullable=False)
     domain_id = sql.Column(sql.String(64), sql.ForeignKey('domain.id'),
                            nullable=False)
     password = sql.Column(sql.String(128))
     enabled = sql.Column(sql.Boolean)
+    expires = sql.Column(sql.DateTime())
     extra = sql.Column(sql.JsonBlob())
     # Unique constraint across two columns to create the separation
     # rather than just only 'name' being unique
@@ -676,6 +680,14 @@ class Identity(sql.Base, identity.Driver):
     def get_user_by_name(self, user_name, domain_id):
         return identity.filter_user(
             self._get_user_by_name(user_name, domain_id))
+
+
+    def get_expired_users(self):
+        session = self.get_session()
+        now = datetime.datetime.utcnow()
+        user_refs = session.query(User).filter("user.expires is not NULL")
+        user_refs = user_refs.filter(User.expires < now)
+        return [identity.filter_user(x.to_dict()) for x in user_refs]
 
     @sql.handle_conflicts(type='user')
     def update_user(self, user_id, user):

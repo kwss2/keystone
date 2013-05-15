@@ -17,6 +17,7 @@
 import uuid
 
 import ldap
+from ldap import filter as ldap_filter
 
 from keystone import clean
 from keystone.common import ldap as common_ldap
@@ -166,7 +167,9 @@ class Identity(identity.Driver):
     # CRUD
     def create_user(self, user_id, user):
         user['name'] = clean.user_name(user['name'])
-        return identity.filter_user(self.user.create(user))
+        unfiltered_user = self.user.create(user)
+        filtered = identity.filter_user(unfiltered_user)
+        return filtered
 
     def update_user(self, user_id, user):
         if 'name' in user:
@@ -383,6 +386,7 @@ class UserApi(common_ldap.EnabledEmuMixIn, common_ldap.BaseLdap, ApiShimMixin):
                          'email': 'mail',
                          'name': 'sn',
                          'enabled': 'enabled',
+                         'expires': 'accountExpires',
                          'domain_id': 'domain_id'}
 
     model = models.User
@@ -393,6 +397,7 @@ class UserApi(common_ldap.EnabledEmuMixIn, common_ldap.BaseLdap, ApiShimMixin):
         self.attribute_mapping['email'] = conf.ldap.user_mail_attribute
         self.attribute_mapping['password'] = conf.ldap.user_pass_attribute
         self.attribute_mapping['enabled'] = conf.ldap.user_enabled_attribute
+        self.attribute_mapping['expires'] = conf.ldap.user_expires_attribute
         self.attribute_mapping['domain_id'] = (
             conf.ldap.user_domain_id_attribute)
         self.enabled_mask = conf.ldap.user_enabled_mask
@@ -925,14 +930,8 @@ class GroupApi(common_ldap.BaseLdap, ApiShimMixin):
             for user_dn in user_dns:
                 if self.use_dumb_member and user_dn == self.dumb_member:
                     continue
-                try:
-                    user_id = self.user_api._dn_to_id(user_dn)
-                    users.append(self.user_api.get(user_id))
-                except exception.UserNotFound:
-                    LOG.debug(_("Group member '%(user_dn)s' not found in"
-                                " '%(group_dn)s'. The user should be removed"
-                                " from the group. The user will be ignored.") %
-                              dict(user_dn=user_dn, group_dn=group_dn))
+                user_id = self.user_api._dn_to_id(user_dn)
+                users.append(self.user_api.get(user_id))
         return users
 
 

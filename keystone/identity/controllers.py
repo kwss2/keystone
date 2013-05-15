@@ -24,6 +24,7 @@ from keystone.common import controller
 from keystone.common import logging
 from keystone import config
 from keystone import exception
+from keystone.openstack.common import timeutils
 
 
 CONF = config.CONF
@@ -592,16 +593,25 @@ class UserV3(controller.V3Controller):
     @controller.protected
     def create_user(self, context, user):
         ref = self._assign_unique_id(self._normalize_dict(user))
+        user_id = user.get('id', None)
+        if user_id is not None:
+            ref['id'] = user_id
+        expires = user.get('expires', None)
+        if expires is not None:
+            try:
+                ref['expires'] = timeutils.parse_strtime(expires)
+            except ValueError:
+                ref['expires'] = timeutils.parse_isotime(expires)
         ref = self._normalize_domain_id(context, ref)
         ref = self.identity_api.create_user(context, ref['id'], ref)
         return UserV3.wrap_member(context, ref)
 
-    @controller.filterprotected('domain_id', 'email', 'enabled', 'name')
+    @controller.filterprotected('domain_id', 'email', 'enabled', 'expires', 'name')
     def list_users(self, context, filters):
         refs = self.identity_api.list_users(context)
         return UserV3.wrap_collection(context, refs, filters)
 
-    @controller.filterprotected('domain_id', 'email', 'enabled', 'name')
+    @controller.filterprotected('domain_id', 'email', 'enabled', 'name', 'expires')
     def list_users_in_group(self, context, filters, group_id):
         refs = self.identity_api.list_users_in_group(context, group_id)
         return UserV3.wrap_collection(context, refs, filters)
@@ -621,6 +631,11 @@ class UserV3(controller.V3Controller):
             self._delete_tokens_for_user(context, user_id)
 
         return UserV3.wrap_member(context, ref)
+
+    @controller.protected
+    def get_expired_users(self, context):
+        ref = self.identity_api.get_expired_users(context)
+        return {'users': ref}
 
     @controller.protected
     def add_user_to_group(self, context, user_id, group_id):

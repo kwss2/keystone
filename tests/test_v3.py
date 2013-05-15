@@ -55,6 +55,7 @@ class RestfulTestCase(test_content_types.RestfulTestCase):
                 domain_id=self.domain_id,
                 project_id=self.project_id)
             self.user['id'] = self.user_id
+            print self.user
             self.identity_api.create_user(self.user_id, self.user)
 
             self.default_domain_project_id = uuid.uuid4().hex

@@ -808,14 +808,24 @@ class SqlUpgradeTests(test.TestCase):
         self.assertEqual(ref.legacy_endpoint_id, legacy_endpoint_id)
         self.assertEqual(ref.extra, '{}')
 
+    def test_upgrade_22_to_23(self):
+        self.upgrade(22)
+        self.upgrade(23)
+        self.populate_user_table(with_pass_enab_domain_expires=True)
+        self.assertTableColumns("user",
+                                ["id", "name", "extra", "password",
+                                "enabled", "expires", "domain_id"])
+
     def populate_user_table(self, with_pass_enab=False,
-                            with_pass_enab_domain=False):
+                            with_pass_enab_domain=False,
+                            with_pass_enab_domain_expires=False):
         # Populate the appropriate fields in the user
         # table, depending on the parameters:
         #
         # Default: id, name, extra
         # pass_enab: Add password, enabled as well
         # pass_enab_domain: Add password, enabled and domain as well
+        # pass_enab_domain_expires: As above but with expires fields added
         #
         this_table = sqlalchemy.Table("user",
                                       self.metadata,
@@ -847,10 +857,23 @@ class SqlUpgradeTests(test.TestCase):
                          'enabled': bool(enabled),
                          'extra': json.dumps(extra)})
                 else:
-                    ins = this_table.insert().values(
-                        {'id': user['id'],
-                         'name': user['name'],
-                         'extra': json.dumps(extra)})
+                    if with_pass_enab_domain_expires:
+                        password = extra.pop('password', None)
+                        enabled = extra.pop('enabled', True)
+                        extra.pop('domain_id')
+                        ins = this_table.insert().values(
+                            {'id': user['id'],
+                             'name': user['name'],
+                             'domain_id': user['domain_id'],
+                             'password': password,
+                             'enabled': bool(enabled),
+                             'expires': None,
+                             'extra': json.dumps(extra)})
+                    else:
+                        ins = this_table.insert().values(
+                            {'id': user['id'],
+                             'name': user['name'],
+                             'extra': json.dumps(extra)})
             self.engine.execute(ins)
 
     def populate_tenant_table(self, with_desc_enab=False,
